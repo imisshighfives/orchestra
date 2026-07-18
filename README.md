@@ -1,11 +1,8 @@
-# Transition Readiness
+# Orchestra
 
-An operational orchestration prototype for a high-risk clinical transition (PICU → Urgent Brain MRI). It is not a clinical decision tool — it identifies, routes, tracks, and verifies operational prerequisites while leaving all clinical judgment with the care team.
+**MRI Readiness** — an operational orchestration prototype for a high-risk clinical transition (PICU → Urgent Brain MRI). It is not a clinical decision tool — it identifies, routes, tracks, and verifies operational prerequisites while leaving all clinical judgment with the care team.
 
-The app has two presentation modes, switched with a segmented control at the top:
-
-- **Demo** (default) — the original, fully deterministic ~55-second scripted sequence. No microphone, no network calls, no external APIs.
-- **Live** — a live speech-to-readiness mode. Spoken (or typed) operational updates are turned into proposed readiness changes that a user reviews and accepts before they count.
+The app launches directly into **Live Mode**: an agentic checklist-confirmation workflow where spoken (or typed) bedside updates are reconciled against a preloaded patient-specific checklist. An earlier fully deterministic scripted Demo Mode is retained in the codebase (`components/transition-readiness/`, `lib/transition-readiness/`) but is no longer rendered in the UI.
 
 All patient information (Mateo Patel, MRN SYN-004182, etc.) is synthetic. There are no real EHR integrations or credentials anywhere in this project.
 
@@ -22,7 +19,7 @@ Open:
 http://localhost:3000
 ```
 
-## Demo Mode
+## Demo Mode (retained in code, not rendered)
 
 Unchanged from the original build: a scripted, timer-driven sequence through 7 states (baseline → transition detected → context analyzed → blocker identified → bedside update → device response → all requirements complete), landing on the complete state at ~47 seconds. Controls: Start Demo / Pause / Resume / Reset / Previous / Next, plus keyboard shortcuts (Space, ←, →, R). See the in-app synthetic activity feed and readiness grid for details — nothing about this mode changed when Live mode was added.
 
