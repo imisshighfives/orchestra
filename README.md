@@ -1,6 +1,12 @@
 # Orchestra
 
-**MRI Readiness** — a mobile-first prototype that turns spoken bedside updates into a live, patient-specific operational readiness checklist for a high-risk clinical transition (PICU → urgent brain MRI).
+Every time a critically ill patient moves — to imaging, to the OR, to another hospital — there's an invisible checklist that has to be true before they roll. Today that checklist lives in nurses' heads and phone calls.
+
+**Orchestra is a transition agent:** tell it where the patient is going, and it derives the readiness checklist for that destination — integrated with the patient's current PICU context. *(This prototype ships the MRI template; other destinations are roadmap.)*
+
+The worked example: **Mateo** — seven months old, day one after open-heart surgery, new left-sided weakness overnight. Destination: **urgent brain MRI**. Orchestra populates his checklist from chart context — six categories, every row tagged with its provenance. Nobody types it. And the agent already knows where the danger is for *this* destination: **Cardiac Device — Blocked, red.** He has a pacemaker, and the destination is a giant magnet. Send him to the OR instead, and that card wouldn't exist. That's destination-aware readiness.
+
+From there, the checklist is cleared just by talking the way clinicians already talk — spoken (or typed) bedside updates become live, auditable readiness state.
 
 Orchestra is not a clinical decision tool. It identifies, routes, and tracks *operational* prerequisites — equipment, coordination, documentation — while all clinical judgment stays with the care team. Statements of medical clearance are deliberately never recorded as readiness.
 
