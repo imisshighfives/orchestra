@@ -1,14 +1,16 @@
 # Orchestra
 
-Every time a critically ill patient moves — to imaging, to the OR, to another hospital — there's an invisible checklist that has to be true before they roll. Today that checklist lives in nurses' heads and phone calls.
+**Orchestra is a nursing-owned, AI-assisted clinical coordination platform** designed to reduce delays and safety gaps during complex patient transitions.
 
-**Orchestra is a transition agent:** tell it where the patient is going, and it derives the readiness checklist for that destination — integrated with the patient's current PICU context. *(This prototype ships the MRI template; other destinations are roadmap.)*
+Nurses hold the operational picture together across procedures, imaging, transfers, and discharges — yet they must coordinate through fragmented chart review, phone calls, and verbal updates. That makes it hard for the bedside team to know whether every dependency has actually been completed.
 
-The worked example: **Mateo** — seven months old, day one after open-heart surgery, new left-sided weakness overnight. Destination: **urgent brain MRI**. Orchestra populates his checklist from chart context — six categories, every row tagged with its provenance. Nobody types it. And the agent already knows where the danger is for *this* destination: **Cardiac Device — Blocked, red.** He has a pacemaker, and the destination is a giant magnet. Send him to the OR instead, and that card wouldn't exist. That's destination-aware readiness.
+Orchestra gives the bedside nurse a **patient-specific readiness checklist**, captures natural clinical updates (spoken or typed), extracts operational facts, and maps them to readiness requirements in real time. It identifies confirmed items and unresolved dependencies — transport staffing, equipment, consent, fasting status, interpreter access, anesthesia assessment, cardiac-device planning — with an auditable source for every update.
 
-From there, the checklist is cleared just by talking the way clinicians already talk — spoken (or typed) bedside updates become live, auditable readiness state.
+**The demo:** an MRI readiness workflow for a critically ill pediatric patient. **Mateo** — seven months old, day one after open-heart surgery, new left-sided weakness overnight, destination: urgent brain MRI. His checklist populates from chart context, and the platform already knows the destination-specific hazard: **Cardiac Device — Blocked.** He has a pacemaker, and the destination is a giant magnet.
 
-Orchestra is not a clinical decision tool. It identifies, routes, and tracks *operational* prerequisites — equipment, coordination, documentation — while all clinical judgment stays with the care team. Statements of medical clearance are deliberately never recorded as readiness.
+**The AI does not medically clear the patient.** It supports nursing coordination by extracting and reconciling information, while deterministic rules calculate operational readiness. Statements of medical clearance are deliberately never recorded as readiness — clinical judgment stays with the care team.
+
+MRI is the initial use case; the same nursing-led orchestration engine could support OR handoffs, ICU transport, interfacility transfers, and high-risk discharge workflows.
 
 **All patient data is synthetic** (Mateo Patel, MRN `SYN-004182`). There are no real EHR integrations, no credentials, and no network calls at runtime — extraction is fully deterministic and local.
 
