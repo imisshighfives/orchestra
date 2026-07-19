@@ -26,7 +26,7 @@ export type SubreqState =
   | "contradictory"
   | "not_applicable";
 
-export type SubreqProvenance = "chart" | "voice" | "manual";
+export type SubreqProvenance = "chart" | "voice" | "manual" | "service";
 
 export interface Subrequirement {
   id: string;
@@ -57,11 +57,26 @@ export interface AppliedUpdate {
   subreqId: string;
   subreqLabel: string;
   newState: SubreqState;
-  /** Exact transcript segment used as provenance. */
+  /** Exact transcript segment (or service response note) used as provenance. */
   clause: string;
-  source: "voice" | "manual";
+  source: "voice" | "manual" | "service";
   timestamp: string;
   confidence: number;
+}
+
+/**
+ * An outbound verification request the agent routes to a specialty service
+ * when it hears that an external confirmation is still outstanding.
+ * Responses are simulated locally — there is no real paging/EHR integration.
+ */
+export interface VerificationRequest {
+  id: string;
+  target: string;
+  categoryId: ReadinessCategoryId;
+  status: "routed" | "responded";
+  routedAt: string;
+  respondedAt: string | null;
+  responseNote: string | null;
 }
 
 export interface TranscriptEntry {

@@ -34,8 +34,12 @@ export function UpdatesFeed({ updates }: { updates: AppliedUpdate[] }) {
                 "{u.clause}"
               </p>
               <p className="mt-0.5 text-[10px] text-slate-400">
-                {u.source === "voice" ? "Voice Update" : "Manual Update"} · {u.timestamp} ·
-                Confidence {u.confidence}%
+                {u.source === "voice"
+                  ? "Voice Update"
+                  : u.source === "service"
+                    ? "Service Response"
+                    : "Manual Update"}{" "}
+                · {u.timestamp} · Confidence {u.confidence}%
               </p>
             </li>
           );

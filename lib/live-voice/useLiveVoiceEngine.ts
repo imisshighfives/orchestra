@@ -14,7 +14,15 @@ import type {
   ListeningState,
   LiveCategoryState,
   TranscriptEntry,
+  VerificationRequest,
 } from "./types";
+
+/**
+ * Delay before the simulated Cardiology / EP service "responds" to a routed
+ * verification request. Tuned so a response routed early in Act 2 of the demo
+ * lands on screen during Act 3 without presenter involvement.
+ */
+export const CARDIOLOGY_RESPONSE_DELAY_MS = 28_000;
 
 function nowTime(): string {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -67,6 +75,7 @@ export interface LiveVoiceEngine {
   guardedStatements: GuardedStatement[];
   categories: LiveCategoryState[];
   systemMessage: string | null;
+  verificationRequest: VerificationRequest | null;
   startListening: () => void;
   pauseListening: () => void;
   stopListening: () => void;
@@ -83,9 +92,12 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
   const [guardedStatements, setGuardedStatements] = useState<GuardedStatement[]>([]);
   const [categories, setCategories] = useState<LiveCategoryState[]>(initialLiveCategories);
   const [systemMessage, setSystemMessage] = useState<string | null>(null);
+  const [verificationRequest, setVerificationRequest] = useState<VerificationRequest | null>(null);
 
   const engineRef = useRef<SpeechEngineHandle | null>(null);
   const categoriesRef = useRef<LiveCategoryState[]>(categories);
+  const verificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const verificationRequestRef = useRef<VerificationRequest | null>(null);
   // iOS Safari frequently never flags results as final — it just ends the
   // session after a silence. Track the latest interim text so it can be
   // flushed through the pipeline on end, and whether the user still wants
@@ -99,6 +111,60 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
 
   useEffect(() => {
     setSupported(isSpeechRecognitionSupported());
+  }, []);
+
+  /**
+   * Simulated async response from the Cardiology / EP service. Confirms the
+   * MRI-conditional row and the device management plan with `service`
+   * provenance. Deterministic and local — no real integration.
+   */
+  const applyServiceResponse = useCallback(() => {
+    const req = verificationRequestRef.current;
+    if (!req || req.status === "responded") return;
+    const time = nowTime();
+    const evidence = "Cardiology / EP response — MRI-conditional verified, pre-scan programming complete";
+    const applied: AppliedUpdate[] = [];
+    const next = categoriesRef.current.map((cat) => {
+      if (cat.id !== "cardiac_device") return cat;
+      return {
+        ...cat,
+        subreqs: cat.subreqs.map((s) => {
+          if (s.id !== "mri_conditional" && s.id !== "device_plan") return s;
+          if (s.state === "confirmed") return s;
+          applied.push({
+            id: nextId("u"),
+            categoryId: cat.id,
+            categoryLabel: cat.label,
+            subreqId: s.id,
+            subreqLabel: s.label,
+            newState: "confirmed",
+            clause: evidence,
+            source: "service",
+            timestamp: time,
+            confidence: 99,
+          });
+          return {
+            ...s,
+            state: "confirmed" as const,
+            provenance: "service" as const,
+            updatedAt: time,
+            evidenceClause: evidence,
+          };
+        }),
+      };
+    });
+    categoriesRef.current = next;
+    setCategories(next);
+    if (applied.length > 0) setUpdates((prev) => [...prev, ...applied]);
+    const respondedReq: VerificationRequest = {
+      ...req,
+      status: "responded",
+      respondedAt: time,
+      responseNote: "MRI-conditional status verified · pre-scan programming completed",
+    };
+    verificationRequestRef.current = respondedReq;
+    setVerificationRequest(respondedReq);
+    setSystemMessage(`Cardiology / EP responded. ${buildSystemMessage(applied.length, next)}`);
   }, []);
 
   /**
@@ -171,7 +237,44 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
     setCategories(next);
     setUpdates((prev) => [...prev, ...applied]);
     setSystemMessage(buildSystemMessage(applied.length, next));
-  }, []);
+
+    // Agentic routing: hearing that cardiology confirmation is still
+    // outstanding routes a verification request to the (simulated)
+    // Cardiology / EP service, which responds asynchronously.
+    const heardStillBlocked = applied.some(
+      (u) => u.categoryId === "cardiac_device" && u.newState === "blocked",
+    );
+    if (heardStillBlocked && !verificationRequestRef.current) {
+      const req: VerificationRequest = {
+        id: nextId("v"),
+        target: "Cardiology / EP service",
+        categoryId: "cardiac_device",
+        status: "routed",
+        routedAt: time,
+        respondedAt: null,
+        responseNote: null,
+      };
+      verificationRequestRef.current = req;
+      setVerificationRequest(req);
+      verificationTimerRef.current = setTimeout(applyServiceResponse, CARDIOLOGY_RESPONSE_DELAY_MS);
+    }
+
+    // A spoken confirmation supersedes the pending service response.
+    const spokenConfirm = applied.some(
+      (u) => u.subreqId === "mri_conditional" && u.newState === "confirmed",
+    );
+    if (spokenConfirm && verificationRequestRef.current?.status === "routed") {
+      if (verificationTimerRef.current) clearTimeout(verificationTimerRef.current);
+      const req: VerificationRequest = {
+        ...verificationRequestRef.current,
+        status: "responded",
+        respondedAt: time,
+        responseNote: "Confirmed verbally at bedside",
+      };
+      verificationRequestRef.current = req;
+      setVerificationRequest(req);
+    }
+  }, [applyServiceResponse]);
 
   const ensureEngine = useCallback(() => {
     if (engineRef.current) return engineRef.current;
@@ -262,6 +365,7 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
     return () => {
       wantListeningRef.current = false;
       engineRef.current?.abort();
+      if (verificationTimerRef.current) clearTimeout(verificationTimerRef.current);
     };
   }, []);
 
@@ -282,6 +386,7 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
     guardedStatements,
     categories,
     systemMessage,
+    verificationRequest,
     startListening,
     pauseListening,
     stopListening,

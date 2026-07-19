@@ -1,6 +1,7 @@
 "use client";
 
 import { useLiveVoiceEngine } from "@/lib/live-voice/useLiveVoiceEngine";
+import { CoordinationPanel } from "./CoordinationPanel";
 import { GuardNotice } from "./GuardNotice";
 import { LiveReadinessBoard } from "./LiveReadinessBoard";
 import { MicControls } from "./MicControls";
@@ -30,6 +31,10 @@ export function LiveVoiceScreen() {
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
         {engine.systemMessage ? <SystemResponseBanner message={engine.systemMessage} /> : null}
+
+        {engine.verificationRequest ? (
+          <CoordinationPanel request={engine.verificationRequest} />
+        ) : null}
 
         <LiveReadinessBoard categories={engine.categories} />
 
