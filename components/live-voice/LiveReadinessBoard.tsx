@@ -76,7 +76,7 @@ const ITEM_META: Record<
 function provenanceChip(s: Subrequirement): string {
   if (s.provenance === "chart") return "Chart";
   const src =
-    s.provenance === "voice" ? "Voice" : s.provenance === "service" ? "Cardiology" : "Typed";
+    s.provenance === "voice" ? "Voice" : s.provenance === "service" ? "Service" : "Typed";
   return s.updatedAt ? `${src} · ${s.updatedAt}` : src;
 }
 

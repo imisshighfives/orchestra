@@ -32,9 +32,9 @@ export function LiveVoiceScreen() {
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
         {engine.systemMessage ? <SystemResponseBanner message={engine.systemMessage} /> : null}
 
-        {engine.verificationRequest ? (
-          <CoordinationPanel request={engine.verificationRequest} />
-        ) : null}
+        {engine.verificationRequests.map((request) => (
+          <CoordinationPanel key={request.id} request={request} />
+        ))}
 
         <LiveReadinessBoard categories={engine.categories} />
 

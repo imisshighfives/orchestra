@@ -18,11 +18,55 @@ import type {
 } from "./types";
 
 /**
- * Delay before the simulated Cardiology / EP service "responds" to a routed
- * verification request. Tuned so a response routed early in Act 2 of the demo
- * lands on screen during Act 3 without presenter involvement.
+ * Delays before simulated services "respond" to routed verification
+ * requests. Tuned so responses routed mid-demo land on screen a couple of
+ * beats later without presenter involvement.
  */
 export const CARDIOLOGY_RESPONSE_DELAY_MS = 28_000;
+export const RT_RESPONSE_DELAY_MS = 18_000;
+
+/**
+ * Declarative routing table: which applied update routes a request to which
+ * (simulated) service, what the response confirms, and which spoken update
+ * supersedes a pending response. All deterministic and local.
+ */
+interface RoutingRule {
+  id: string;
+  target: string;
+  categoryId: import("@/lib/transition-readiness/types").ReadinessCategoryId;
+  delayMs: number;
+  trigger: (u: AppliedUpdate) => boolean;
+  supersededBy: (u: AppliedUpdate) => boolean;
+  respondSubreqIds: string[];
+  responseEvidence: string;
+  responseNote: string;
+}
+
+const ROUTING_RULES: RoutingRule[] = [
+  {
+    id: "cardiology",
+    target: "Cardiology / EP service",
+    categoryId: "cardiac_device",
+    delayMs: CARDIOLOGY_RESPONSE_DELAY_MS,
+    trigger: (u) => u.categoryId === "cardiac_device" && u.newState === "blocked",
+    supersededBy: (u) => u.subreqId === "mri_conditional" && u.newState === "confirmed",
+    respondSubreqIds: ["mri_conditional", "device_plan"],
+    responseEvidence:
+      "Cardiology / EP response — MRI-conditional verified, pre-scan programming complete",
+    responseNote: "MRI-conditional status verified · pre-scan programming completed",
+  },
+  {
+    id: "rt-transport",
+    target: "Respiratory Therapy service",
+    categoryId: "transport",
+    delayMs: RT_RESPONSE_DELAY_MS,
+    trigger: (u) => u.subreqId === "rt_required" && u.newState === "confirmed",
+    supersededBy: (u) => u.subreqId === "rt_accepted" && u.newState === "confirmed",
+    respondSubreqIds: ["rt_accepted"],
+    responseEvidence: "RT service response — transport accepted, crew assigned",
+    responseNote: "RT transport accepted · transport crew assigned",
+  },
+];
 
 function nowTime(): string {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -75,7 +119,7 @@ export interface LiveVoiceEngine {
   guardedStatements: GuardedStatement[];
   categories: LiveCategoryState[];
   systemMessage: string | null;
-  verificationRequest: VerificationRequest | null;
+  verificationRequests: VerificationRequest[];
   startListening: () => void;
   pauseListening: () => void;
   stopListening: () => void;
@@ -92,12 +136,12 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
   const [guardedStatements, setGuardedStatements] = useState<GuardedStatement[]>([]);
   const [categories, setCategories] = useState<LiveCategoryState[]>(initialLiveCategories);
   const [systemMessage, setSystemMessage] = useState<string | null>(null);
-  const [verificationRequest, setVerificationRequest] = useState<VerificationRequest | null>(null);
+  const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>([]);
 
   const engineRef = useRef<SpeechEngineHandle | null>(null);
   const categoriesRef = useRef<LiveCategoryState[]>(categories);
-  const verificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const verificationRequestRef = useRef<VerificationRequest | null>(null);
+  const verificationTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const verificationRequestsRef = useRef<VerificationRequest[]>([]);
   // iOS Safari frequently never flags results as final — it just ends the
   // session after a silence. Track the latest interim text so it can be
   // flushed through the pipeline on end, and whether the user still wants
@@ -114,22 +158,22 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
   }, []);
 
   /**
-   * Simulated async response from the Cardiology / EP service. Confirms the
-   * MRI-conditional row and the device management plan with `service`
-   * provenance. Deterministic and local — no real integration.
+   * Simulated async response from a routed service. Confirms the rule's
+   * target subrequirements with `service` provenance. Deterministic and
+   * local — no real integration.
    */
-  const applyServiceResponse = useCallback(() => {
-    const req = verificationRequestRef.current;
-    if (!req || req.status === "responded") return;
+  const applyServiceResponse = useCallback((ruleId: string) => {
+    const rule = ROUTING_RULES.find((r) => r.id === ruleId);
+    const req = verificationRequestsRef.current.find((r) => r.id === ruleId);
+    if (!rule || !req || req.status === "responded") return;
     const time = nowTime();
-    const evidence = "Cardiology / EP response — MRI-conditional verified, pre-scan programming complete";
     const applied: AppliedUpdate[] = [];
     const next = categoriesRef.current.map((cat) => {
-      if (cat.id !== "cardiac_device") return cat;
+      if (cat.id !== rule.categoryId) return cat;
       return {
         ...cat,
         subreqs: cat.subreqs.map((s) => {
-          if (s.id !== "mri_conditional" && s.id !== "device_plan") return s;
+          if (!rule.respondSubreqIds.includes(s.id)) return s;
           if (s.state === "confirmed") return s;
           applied.push({
             id: nextId("u"),
@@ -138,7 +182,7 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
             subreqId: s.id,
             subreqLabel: s.label,
             newState: "confirmed",
-            clause: evidence,
+            clause: rule.responseEvidence,
             source: "service",
             timestamp: time,
             confidence: 99,
@@ -148,7 +192,7 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
             state: "confirmed" as const,
             provenance: "service" as const,
             updatedAt: time,
-            evidenceClause: evidence,
+            evidenceClause: rule.responseEvidence,
           };
         }),
       };
@@ -160,11 +204,13 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
       ...req,
       status: "responded",
       respondedAt: time,
-      responseNote: "MRI-conditional status verified · pre-scan programming completed",
+      responseNote: rule.responseNote,
     };
-    verificationRequestRef.current = respondedReq;
-    setVerificationRequest(respondedReq);
-    setSystemMessage(`Cardiology / EP responded. ${buildSystemMessage(applied.length, next)}`);
+    verificationRequestsRef.current = verificationRequestsRef.current.map((r) =>
+      r.id === ruleId ? respondedReq : r,
+    );
+    setVerificationRequests(verificationRequestsRef.current);
+    setSystemMessage(`${rule.target} responded. ${buildSystemMessage(applied.length, next)}`);
   }, []);
 
   /**
@@ -238,41 +284,46 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
     setUpdates((prev) => [...prev, ...applied]);
     setSystemMessage(buildSystemMessage(applied.length, next));
 
-    // Agentic routing: hearing that cardiology confirmation is still
-    // outstanding routes a verification request to the (simulated)
-    // Cardiology / EP service, which responds asynchronously.
-    const heardStillBlocked = applied.some(
-      (u) => u.categoryId === "cardiac_device" && u.newState === "blocked",
-    );
-    if (heardStillBlocked && !verificationRequestRef.current) {
-      const req: VerificationRequest = {
-        id: nextId("v"),
-        target: "Cardiology / EP service",
-        categoryId: "cardiac_device",
-        status: "routed",
-        routedAt: time,
-        respondedAt: null,
-        responseNote: null,
-      };
-      verificationRequestRef.current = req;
-      setVerificationRequest(req);
-      verificationTimerRef.current = setTimeout(applyServiceResponse, CARDIOLOGY_RESPONSE_DELAY_MS);
+    // Agentic routing: certain applied updates route a verification request
+    // to a (simulated) service, which responds asynchronously.
+    for (const rule of ROUTING_RULES) {
+      const alreadyRouted = verificationRequestsRef.current.some((r) => r.id === rule.id);
+      if (!alreadyRouted && applied.some(rule.trigger)) {
+        const req: VerificationRequest = {
+          id: rule.id,
+          target: rule.target,
+          categoryId: rule.categoryId,
+          status: "routed",
+          routedAt: time,
+          respondedAt: null,
+          responseNote: null,
+        };
+        verificationRequestsRef.current = [...verificationRequestsRef.current, req];
+        setVerificationRequests(verificationRequestsRef.current);
+        verificationTimersRef.current.set(
+          rule.id,
+          setTimeout(() => applyServiceResponse(rule.id), rule.delayMs),
+        );
+      }
     }
 
-    // A spoken confirmation supersedes the pending service response.
-    const spokenConfirm = applied.some(
-      (u) => u.subreqId === "mri_conditional" && u.newState === "confirmed",
-    );
-    if (spokenConfirm && verificationRequestRef.current?.status === "routed") {
-      if (verificationTimerRef.current) clearTimeout(verificationTimerRef.current);
-      const req: VerificationRequest = {
-        ...verificationRequestRef.current,
-        status: "responded",
-        respondedAt: time,
-        responseNote: "Confirmed verbally at bedside",
-      };
-      verificationRequestRef.current = req;
-      setVerificationRequest(req);
+    // A spoken confirmation supersedes a pending service response.
+    for (const rule of ROUTING_RULES) {
+      const req = verificationRequestsRef.current.find((r) => r.id === rule.id);
+      if (req?.status === "routed" && applied.some(rule.supersededBy)) {
+        const timer = verificationTimersRef.current.get(rule.id);
+        if (timer) clearTimeout(timer);
+        const superseded: VerificationRequest = {
+          ...req,
+          status: "responded",
+          respondedAt: time,
+          responseNote: "Confirmed verbally at bedside",
+        };
+        verificationRequestsRef.current = verificationRequestsRef.current.map((r) =>
+          r.id === rule.id ? superseded : r,
+        );
+        setVerificationRequests(verificationRequestsRef.current);
+      }
     }
   }, [applyServiceResponse]);
 
@@ -365,7 +416,7 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
     return () => {
       wantListeningRef.current = false;
       engineRef.current?.abort();
-      if (verificationTimerRef.current) clearTimeout(verificationTimerRef.current);
+      verificationTimersRef.current.forEach((timer) => clearTimeout(timer));
     };
   }, []);
 
@@ -386,7 +437,7 @@ export function useLiveVoiceEngine(): LiveVoiceEngine {
     guardedStatements,
     categories,
     systemMessage,
-    verificationRequest,
+    verificationRequests,
     startListening,
     pauseListening,
     stopListening,

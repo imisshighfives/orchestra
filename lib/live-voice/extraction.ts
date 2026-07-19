@@ -116,6 +116,14 @@ const CONFIRM_RULES: ConfirmRule[] = [
   },
   // Transport
   {
+    // "…so I will need an RT transport" — establishes/confirms the RT
+    // transport requirement (and triggers routing to the RT service).
+    categoryId: "transport",
+    subreqId: "rt_required",
+    test: /(need|require)[sd]?[^,.]*\brt\b[^,.]*transport|\brt transport\b[^,.]*(needed|required)|\brt\b[^,.]*for (the )?transport/i,
+    confidence: 88,
+  },
+  {
     categoryId: "transport",
     subreqId: "rt_accepted",
     test: /(rt|respiratory( therapy)?)[^,.]*(accepted|accepts|acknowledged|confirmed (the )?transport|will take|taking (the )?patient|on board|good to go|coming|on the way)/i,
