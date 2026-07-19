@@ -52,7 +52,15 @@ export function LiveVoiceScreen() {
 
         <p className="mx-4 mt-3 text-[9px] text-slate-300">
           Synthetic demo data · no real patient information · never a medical clearance
-          determination
+          determination ·{" "}
+          <a
+            href="https://github.com/imisshighfives/orchestra"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-slate-200 underline-offset-2 hover:text-slate-400"
+          >
+            github.com/imisshighfives/orchestra
+          </a>
         </p>
       </div>
     </div>

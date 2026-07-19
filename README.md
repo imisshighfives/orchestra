@@ -9,6 +9,8 @@ Orchestra is not a clinical decision tool. It identifies, routes, and tracks *op
 ## Quick start
 
 ```bash
+git clone https://github.com/imisshighfives/orchestra.git
+cd orchestra
 npm install
 npm run dev
 ```
@@ -31,6 +33,8 @@ Safety behaviors, all rule-based:
 - "Still waiting on cardiology…" keeps a blocked item blocked.
 - Clearance language ("the patient is cleared for MRI") triggers a notice — *"Medical clearance statements require clinician judgment and are not recorded as operational readiness completion."* — and changes nothing.
 
+**Agentic verification loop.** Hearing that cardiology confirmation is still outstanding makes the agent route a verification request to a Cardiology / EP service on its own — the UI shows the request as *routed → awaiting response*. About 28 seconds later a **simulated** service response arrives asynchronously, confirms the MRI-conditional and device-plan items with `Cardiology` provenance, and flips the card to Ready — with no user action. A verbal confirmation spoken before the response supersedes it cleanly. (The service is simulated and labeled as such in the UI; there is no real paging or EHR messaging. The delay is tunable via `CARDIOLOGY_RESPONSE_DELAY_MS`.)
+
 No model decides readiness. Extraction only identifies facts; fixed checklist rules decide every state.
 
 ## Try it (no microphone needed)
@@ -41,7 +45,7 @@ Type these into **Add Clinical Update**:
 |---|---|
 | `The transport ventilator is ready, oxygen tank is full, and portable suction is good to go.` | All three Airway items confirm → Airway turns **Ready** |
 | `Mateo has two working bilateral PIVs, an arterial line, and a PICC with drips.` | Three vascular items confirm; Infusions stays **In progress** (drips not yet confirmed secured) |
-| `Cardiology still needs to confirm the pacemaker is MRI compatible.` | Cardiac Device stays **Blocked** |
+| `Cardiology still needs to confirm the pacemaker is MRI compatible.` | Cardiac Device stays **Blocked** — and the agent routes a verification request; ~28s later the simulated Cardiology/EP response confirms the device items autonomously |
 | `The Spanish interpreter is connected.` | Interpreter item confirms; Destination remains pending |
 | `The patient is cleared for MRI.` | No state change; clearance-guard notice shown |
 
